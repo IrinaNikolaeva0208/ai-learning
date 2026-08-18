@@ -1,0 +1,34 @@
+# compiled output
+dist/
+build/
+
+# dependencies
+node_modules/
+
+# logs
+*.log
+logs/
+
+# test coverage
+coverage/
+
+# env
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Claude Code
+CLAUDE.local.md
+.claude/settings.local.json
+
+# SQLite databases — keep the directory itself, it is a Docker bind-mount
+# source and Docker would otherwise create it root-owned.
+data/*
+!data/.gitkeep
+*.db
+*.db-journal

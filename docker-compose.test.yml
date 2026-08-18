@@ -1,0 +1,25 @@
+# Integration tests against a real SQLite database, isolated from the api
+# container's data. Self-contained — not merged with docker-compose.yml:
+#   npm run docker:test
+services:
+  api_test:
+    build:
+      context: .
+      # Dev dependencies are needed for Jest and the Prisma CLI.
+      target: development
+    image: bookmark-manager-test
+    environment:
+      NODE_ENV: test
+      # Separate database file; test/setup-e2e.ts recreates it on every run.
+      DATABASE_URL: file:../data/test.db
+    volumes:
+      # Current sources, so tests run without rebuilding the image.
+      - ./src:/app/src
+      - ./test:/app/test
+      - ./prisma:/app/prisma
+      # Throwaway database, never shared with the api container.
+      - sqlite-test-data:/app/data
+    command: npm run test:e2e
+
+volumes:
+  sqlite-test-data:

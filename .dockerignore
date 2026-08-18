@@ -1,0 +1,17 @@
+node_modules
+dist
+coverage
+data
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.log
+.claude
+CLAUDE.md
+CLAUDE.local.md
+README.md
+Dockerfile
+.dockerignore
+docker-compose*.yml

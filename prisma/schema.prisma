@@ -1,0 +1,11 @@
+// No domain models yet — this project is scaffolding only. Add models here,
+// then run `npm run prisma:migrate` to create the first migration.
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
