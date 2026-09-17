@@ -77,3 +77,18 @@ The `Dockerfile` is staged `base → development → build → runtime`. Points 
 - ESLint uses `recommendedTypeChecked`, so lint errors can be type errors — fix them rather than casting to `any`.
 - Formatting runs automatically via a Prettier format-on-edit hook (`.claude/settings.json`) on JS/TS/JSON files.
 - Default branch is `main`. Branch off `main` for changes; only commit/push when asked.
+
+## Skills
+
+Skills shared by both agents live in **`.agents/skills/<name>/SKILL.md`** — the vendor-neutral location Codex reads, mirroring how `CLAUDE.md` is a symlink to `AGENTS.md`. Claude Code only scans `.claude/skills/`, so each shared skill gets a directory there whose `SKILL.md` is a **symlink** into `.agents/skills/`:
+
+```
+.agents/skills/grilling/SKILL.md          # real file, edit here
+.claude/skills/grilling/SKILL.md -> ../../../.agents/skills/grilling/SKILL.md
+```
+
+Symlink the `SKILL.md`, not the skill directory: a real directory with a symlinked file is discovered by both agents regardless of whether their globs follow symlinked directories, which is not guaranteed. Codex-specific presentation (display name, whether the model may invoke the skill on its own) goes in `agents/openai.yaml` next to the `SKILL.md`; Claude reads the equivalent from the SKILL.md frontmatter (`disable-model-invocation`).
+
+Currently shared: `grilling` and its user-invoked entry point `grill-me` (vendored from [mattpocock/skills](https://github.com/mattpocock/skills), MIT). `verify` is Claude-only and lives directly in `.claude/skills/`; move it under `.agents/skills/` with a symlink if Codex should get it too.
+
+Check what Codex actually sees with `codex debug prompt-input | grep -o '<skills_instructions>.*</skills_instructions>'` — skills with implicit invocation disabled are deliberately absent from that list and reachable only as a slash command.

@@ -1,5 +1,3 @@
-// No domain models yet — this project is scaffolding only. Add models here,
-// then run `npm run prisma:migrate` to create the first migration.
 generator client {
   provider = "prisma-client-js"
   output   = "../node_modules/.prisma/client"
@@ -8,4 +6,13 @@ generator client {
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
+}
+
+model Bookmark {
+  id          String   @id @default(uuid())
+  title       String
+  url         String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
 }

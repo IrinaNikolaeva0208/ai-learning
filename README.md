@@ -2,11 +2,7 @@
 
 A REST API built with NestJS, TypeScript, Prisma, and SQLite.
 
-The repository currently contains the application infrastructure only: a
-database-backed health endpoint, local and Docker environments, linting, and
-unit and end-to-end test setups. Bookmark management, metadata extraction,
-background tag classification, search, favourites, and authentication are
-planned but not implemented yet.
+The API provides bookmark CRUD operations and a database-backed health check.
 
 ## Requirements
 
@@ -45,9 +41,47 @@ A healthy application returns:
 }
 ```
 
+## Bookmark API
+
+All request bodies are JSON. Unknown and server-managed fields are rejected.
+`title`, `url`, and `description` are trimmed; an empty description is stored as
+`null`. URLs must be absolute HTTP or HTTPS URLs.
+
+| Method   | Route            | Body / query                                          | Success |
+| -------- | ---------------- | ----------------------------------------------------- | ------- |
+| `POST`   | `/bookmarks`     | `{ title, url, description? }`                        | `201`   |
+| `GET`    | `/bookmarks`     | `page` (default `1`), `limit` (default `20`)          | `200`   |
+| `GET`    | `/bookmarks/:id` | —                                                     | `200`   |
+| `PATCH`  | `/bookmarks/:id` | Any non-empty subset of `title`, `url`, `description` | `200`   |
+| `DELETE` | `/bookmarks/:id` | —                                                     | `204`   |
+
+`title` is required on create and may contain 1–200 characters. `url` is
+required on create, unique after trimming, and may contain up to 2048
+characters. `description` is optional, nullable, and may contain up to 1000
+characters. IDs must be UUID v4 values.
+
+List responses have this shape:
+
+```json
+{
+  "data": [],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 0,
+    "totalPages": 0
+  }
+}
+```
+
+The maximum `limit` is 100. Results are ordered by creation time newest first,
+with the ID as a stable descending tie-breaker. Pages beyond the final page
+return an empty `data` array. Validation errors and invalid UUIDs return `400`,
+missing bookmarks return `404`, and duplicate URLs return `409`.
+
 ## Docker
 
-Build and start the production-style container:
+Build and start the development container:
 
 ```bash
 npm run docker:up
@@ -59,7 +93,7 @@ Stop it with:
 npm run docker:down
 ```
 
-The container stores its SQLite database in a named Docker volume.
+The container and local processes share the SQLite file at `data/dev.db`.
 
 ## Development commands
 
@@ -76,8 +110,7 @@ npm run docker:test    # Run end-to-end tests in Docker
 ## Database
 
 Prisma uses SQLite in every environment. The schema is defined in
-`prisma/schema.prisma`; it intentionally has no domain models or migrations
-yet.
+`prisma/schema.prisma`; versioned migrations live in `prisma/migrations/`.
 
 After adding or changing a model, create a development migration with:
 
