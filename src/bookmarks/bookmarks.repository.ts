@@ -4,10 +4,17 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   Bookmark,
+  BookmarkMetadataStatus,
   BookmarkPageData,
   CreateBookmarkData,
   UpdateBookmarkData,
 } from './types/bookmark.types';
+
+const bookmarkWithMetadata = {
+  include: { metadata: true },
+} satisfies Prisma.BookmarkDefaultArgs;
+
+type BookmarkRecord = Prisma.BookmarkGetPayload<typeof bookmarkWithMetadata>;
 
 @Injectable()
 export class BookmarksRepository {
@@ -34,15 +41,30 @@ export class BookmarksRepository {
   }
 
   async create(data: CreateBookmarkData): Promise<Bookmark> {
-    return this.bookmarks.create({ data });
+    const bookmark = await this.bookmarks.create({
+      data: { ...data, metadata: { create: {} } },
+      ...bookmarkWithMetadata,
+    });
+
+    return this.toBookmark(bookmark);
   }
 
   async findById(id: string): Promise<Bookmark | null> {
-    return this.bookmarks.findUnique({ where: { id } });
+    const bookmark = await this.bookmarks.findUnique({
+      where: { id },
+      ...bookmarkWithMetadata,
+    });
+
+    return bookmark ? this.toBookmark(bookmark) : null;
   }
 
   async findByUrl(url: string): Promise<Bookmark | null> {
-    return this.bookmarks.findUnique({ where: { url } });
+    const bookmark = await this.bookmarks.findUnique({
+      where: { url },
+      ...bookmarkWithMetadata,
+    });
+
+    return bookmark ? this.toBookmark(bookmark) : null;
   }
 
   async findPage(page: number, limit: number): Promise<BookmarkPageData> {
@@ -52,17 +74,76 @@ export class BookmarksRepository {
         skip: (page - 1) * limit,
         take: limit,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...bookmarkWithMetadata,
       }),
     ]);
 
-    return { data, total };
+    return { data: data.map((bookmark) => this.toBookmark(bookmark)), total };
   }
 
-  async update(id: string, data: UpdateBookmarkData): Promise<Bookmark> {
-    return this.bookmarks.update({ where: { id }, data });
+  async update(
+    id: string,
+    data: UpdateBookmarkData,
+    resetMetadata = false,
+  ): Promise<Bookmark> {
+    const bookmark = await this.bookmarks.update({
+      where: { id },
+      data: {
+        ...data,
+        metadata: resetMetadata
+          ? {
+              update: {
+                status: 'pending',
+                pageTitle: null,
+                description: null,
+                openGraphTitle: null,
+                openGraphDescription: null,
+                openGraphImageUrl: null,
+                resolvedUrl: null,
+                fetchedAt: null,
+                attempts: 0,
+                nextAttemptAt: new Date(),
+                lockToken: null,
+                leaseExpiresAt: null,
+                lastError: null,
+              },
+            }
+          : undefined,
+      },
+      ...bookmarkWithMetadata,
+    });
+
+    return this.toBookmark(bookmark);
   }
 
   async delete(id: string): Promise<void> {
     await this.bookmarks.delete({ where: { id } });
+  }
+
+  private toBookmark(record: BookmarkRecord): Bookmark {
+    if (!record.metadata) {
+      throw new Error(`Bookmark ${record.id} has no metadata record`);
+    }
+
+    return {
+      id: record.id,
+      title: record.title,
+      url: record.url,
+      description: record.description,
+      metadata: {
+        status: record.metadata.status as BookmarkMetadataStatus,
+        pageTitle: record.metadata.pageTitle,
+        description: record.metadata.description,
+        openGraph: {
+          title: record.metadata.openGraphTitle,
+          description: record.metadata.openGraphDescription,
+          imageUrl: record.metadata.openGraphImageUrl,
+        },
+        resolvedUrl: record.metadata.resolvedUrl,
+        fetchedAt: record.metadata.fetchedAt,
+      },
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
   }
 }

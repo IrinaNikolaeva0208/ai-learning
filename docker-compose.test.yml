@@ -10,6 +10,7 @@ services:
     image: bookmark-manager-test
     environment:
       NODE_ENV: test
+      METADATA_WORKER_ENABLED: 'false'
       # Separate database file; test/setup-e2e.ts recreates it on every run.
       DATABASE_URL: file:../data/test.db
     volumes:

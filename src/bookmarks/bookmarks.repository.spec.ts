@@ -8,8 +8,37 @@ describe('BookmarksRepository', () => {
     title: 'NestJS',
     url: 'https://nestjs.com',
     description: null,
+    metadata: {
+      status: 'pending',
+      pageTitle: null,
+      description: null,
+      openGraph: { title: null, description: null, imageUrl: null },
+      resolvedUrl: null,
+      fetchedAt: null,
+    },
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  };
+  const bookmarkRecord = {
+    ...bookmark,
+    metadata: {
+      bookmarkId: bookmark.id,
+      status: 'pending',
+      pageTitle: null,
+      description: null,
+      openGraphTitle: null,
+      openGraphDescription: null,
+      openGraphImageUrl: null,
+      resolvedUrl: null,
+      fetchedAt: null,
+      attempts: 0,
+      nextAttemptAt: bookmark.createdAt,
+      lockToken: null,
+      leaseExpiresAt: null,
+      lastError: null,
+      createdAt: bookmark.createdAt,
+      updatedAt: bookmark.updatedAt,
+    },
   };
 
   let bookmarkDelegate: {
@@ -53,7 +82,7 @@ describe('BookmarksRepository', () => {
   });
 
   it('uses the transaction client supplied to withTransaction', async () => {
-    transactionDelegate.findUnique.mockResolvedValue(bookmark);
+    transactionDelegate.findUnique.mockResolvedValue(bookmarkRecord);
 
     await repository.withTransaction((transaction) =>
       transaction.findByUrl(bookmark.url),
@@ -62,12 +91,13 @@ describe('BookmarksRepository', () => {
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(transactionDelegate.findUnique).toHaveBeenCalledWith({
       where: { url: bookmark.url },
+      include: { metadata: true },
     });
     expect(bookmarkDelegate.findUnique).not.toHaveBeenCalled();
   });
 
   it('reuses the transaction client for a nested transaction', async () => {
-    transactionDelegate.findUnique.mockResolvedValue(bookmark);
+    transactionDelegate.findUnique.mockResolvedValue(bookmarkRecord);
 
     await repository.withTransaction((transaction) =>
       transaction.withTransaction((nestedTransaction) =>
@@ -78,34 +108,47 @@ describe('BookmarksRepository', () => {
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(transactionDelegate.findUnique).toHaveBeenCalledWith({
       where: { id: bookmark.id },
+      include: { metadata: true },
     });
   });
 
   it('creates with the provided data', async () => {
-    bookmarkDelegate.create.mockResolvedValue(bookmark);
+    bookmarkDelegate.create.mockResolvedValue(bookmarkRecord);
     const data = { title: bookmark.title, url: bookmark.url };
 
-    await expect(repository.create(data)).resolves.toBe(bookmark);
-    expect(bookmarkDelegate.create).toHaveBeenCalledWith({ data });
+    await expect(repository.create(data)).resolves.toEqual(bookmark);
+    expect(bookmarkDelegate.create).toHaveBeenCalledWith({
+      data: { ...data, metadata: { create: {} } },
+      include: { metadata: true },
+    });
   });
 
   it('finds records by id and URL', async () => {
-    bookmarkDelegate.findUnique.mockResolvedValue(bookmark);
+    bookmarkDelegate.findUnique.mockResolvedValue(bookmarkRecord);
 
     await repository.findById(bookmark.id);
     await repository.findByUrl(bookmark.url);
 
     expect(bookmarkDelegate.findUnique).toHaveBeenNthCalledWith(1, {
       where: { id: bookmark.id },
+      include: { metadata: true },
     });
     expect(bookmarkDelegate.findUnique).toHaveBeenNthCalledWith(2, {
       where: { url: bookmark.url },
+      include: { metadata: true },
     });
+  });
+
+  it('returns null for missing records', async () => {
+    bookmarkDelegate.findUnique.mockResolvedValue(null);
+
+    await expect(repository.findById(bookmark.id)).resolves.toBeNull();
+    await expect(repository.findByUrl(bookmark.url)).resolves.toBeNull();
   });
 
   it('counts and lists a page in one transaction with stable ordering', async () => {
     bookmarkDelegate.count.mockResolvedValue(3);
-    bookmarkDelegate.findMany.mockResolvedValue([bookmark]);
+    bookmarkDelegate.findMany.mockResolvedValue([bookmarkRecord]);
 
     await expect(repository.findPage(2, 10)).resolves.toEqual({
       total: 3,
@@ -115,6 +158,7 @@ describe('BookmarksRepository', () => {
       skip: 10,
       take: 10,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      include: { metadata: true },
     });
     expect(prisma.$transaction).toHaveBeenCalledWith([
       expect.any(Promise),
@@ -123,18 +167,38 @@ describe('BookmarksRepository', () => {
   });
 
   it('updates and deletes by id', async () => {
-    bookmarkDelegate.update.mockResolvedValue(bookmark);
-    bookmarkDelegate.delete.mockResolvedValue(bookmark);
+    bookmarkDelegate.update.mockResolvedValue(bookmarkRecord);
+    bookmarkDelegate.delete.mockResolvedValue(bookmarkRecord);
 
     await repository.update(bookmark.id, { title: 'Updated' });
     await repository.delete(bookmark.id);
 
     expect(bookmarkDelegate.update).toHaveBeenCalledWith({
       where: { id: bookmark.id },
-      data: { title: 'Updated' },
+      data: { title: 'Updated', metadata: undefined },
+      include: { metadata: true },
     });
     expect(bookmarkDelegate.delete).toHaveBeenCalledWith({
       where: { id: bookmark.id },
     });
+  });
+
+  it('clears metadata when resetting after a URL change', async () => {
+    bookmarkDelegate.update.mockResolvedValue(bookmarkRecord);
+
+    await repository.update(bookmark.id, { url: 'https://example.com' }, true);
+
+    expect(bookmarkDelegate.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects database records without their required metadata row', async () => {
+    bookmarkDelegate.findUnique.mockResolvedValue({
+      ...bookmarkRecord,
+      metadata: null,
+    });
+
+    await expect(repository.findById(bookmark.id)).rejects.toThrow(
+      `Bookmark ${bookmark.id} has no metadata record`,
+    );
   });
 });

@@ -9,10 +9,34 @@ datasource db {
 }
 
 model Bookmark {
-  id          String   @id @default(uuid())
+  id          String            @id @default(uuid())
   title       String
-  url         String   @unique
+  url         String            @unique
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @default(now()) @updatedAt
+  metadata    BookmarkMetadata?
+}
+
+model BookmarkMetadata {
+  bookmarkId           String    @id
+  status               String    @default("pending")
+  pageTitle            String?
+  description          String?
+  openGraphTitle       String?
+  openGraphDescription String?
+  openGraphImageUrl    String?
+  resolvedUrl          String?
+  fetchedAt            DateTime?
+  attempts             Int       @default(0)
+  nextAttemptAt        DateTime  @default(now())
+  lockToken            String?
+  leaseExpiresAt       DateTime?
+  lastError            String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @default(now()) @updatedAt
+  bookmark             Bookmark  @relation(fields: [bookmarkId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([status, leaseExpiresAt])
 }

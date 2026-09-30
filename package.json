@@ -62,10 +62,13 @@
     "@nestjs/core": "^11.2.1",
     "@nestjs/platform-express": "^11.2.1",
     "@prisma/client": "^6.19.3",
+    "cheerio": "^1.2.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "ipaddr.js": "^2.2.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "undici": "^7.16.0"
   },
   "private": true,
   "jest": {

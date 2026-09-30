@@ -8,6 +8,14 @@ describe('BookmarksController', () => {
     title: 'NestJS',
     url: 'https://nestjs.com',
     description: null,
+    metadata: {
+      status: 'pending',
+      pageTitle: null,
+      description: null,
+      openGraph: { title: null, description: null, imageUrl: null },
+      resolvedUrl: null,
+      fetchedAt: null,
+    },
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
     updatedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
