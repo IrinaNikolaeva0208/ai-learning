@@ -12,9 +12,30 @@ interface ApiBookmark {
   title: string;
   url: string;
   description: string | null;
+  metadata: {
+    status: 'pending' | 'processing' | 'ready' | 'failed';
+    pageTitle: string | null;
+    description: string | null;
+    openGraph: {
+      title: string | null;
+      description: string | null;
+      imageUrl: string | null;
+    };
+    resolvedUrl: string | null;
+    fetchedAt: string | null;
+  };
   createdAt: string;
   updatedAt: string;
 }
+
+const pendingMetadata = {
+  status: 'pending',
+  pageTitle: null,
+  description: null,
+  openGraph: { title: null, description: null, imageUrl: null },
+  resolvedUrl: null,
+  fetchedAt: null,
+};
 
 describe('Bookmark Manager (e2e)', () => {
   let app: INestApplication<App>;
@@ -83,6 +104,7 @@ describe('Bookmark Manager (e2e)', () => {
       title: 'NestJS docs',
       url: 'http://localhost:3000/docs',
       description: 'Framework documentation',
+      metadata: pendingMetadata,
     });
     expect(created.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
@@ -170,6 +192,31 @@ describe('Bookmark Manager (e2e)', () => {
       .expect(409);
   });
 
+  it('clears fetched metadata and queues another job when the URL changes', async () => {
+    const createResponse = await request(app.getHttpServer())
+      .post('/bookmarks')
+      .send({ title: 'Example', url: 'https://example.com/old' })
+      .expect(201);
+    const bookmark = createResponse.body as ApiBookmark;
+
+    await prisma.bookmarkMetadata.update({
+      where: { bookmarkId: bookmark.id },
+      data: {
+        status: 'ready',
+        pageTitle: 'Old title',
+        resolvedUrl: bookmark.url,
+        fetchedAt: new Date(),
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .patch(`/bookmarks/${bookmark.id}`)
+      .send({ url: 'https://example.com/new' })
+      .expect(200);
+
+    expect((response.body as ApiBookmark).metadata).toEqual(pendingMetadata);
+  });
+
   it.each([
     ['an empty title', { title: '  ', url: 'https://example.com' }],
     ['a non-HTTP URL', { title: 'Bad URL', url: 'ftp://example.com' }],
@@ -244,7 +291,13 @@ describe('Bookmark Manager (e2e)', () => {
         createdAt: new Date('2026-01-03T00:00:00.000Z'),
       },
     ];
-    await Promise.all(rows.map((data) => prisma.bookmark.create({ data })));
+    await Promise.all(
+      rows.map((data) =>
+        prisma.bookmark.create({
+          data: { ...data, metadata: { create: {} } },
+        }),
+      ),
+    );
 
     const defaultResponse = await request(app.getHttpServer())
       .get('/bookmarks')

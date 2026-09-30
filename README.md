@@ -79,6 +79,35 @@ with the ID as a stable descending tie-breaker. Pages beyond the final page
 return an empty `data` array. Validation errors and invalid UUIDs return `400`,
 missing bookmarks return `404`, and duplicate URLs return `409`.
 
+Every bookmark response also contains asynchronously fetched page metadata:
+
+```json
+{
+  "metadata": {
+    "status": "pending",
+    "pageTitle": null,
+    "description": null,
+    "openGraph": {
+      "title": null,
+      "description": null,
+      "imageUrl": null
+    },
+    "resolvedUrl": null,
+    "fetchedAt": null
+  }
+}
+```
+
+The status moves through `pending`, `processing`, and either `ready` or
+`failed`. Bookmark creation does not wait for the remote page. Changing a
+bookmark URL clears stale metadata and queues another fetch; the user-supplied
+bookmark title and description are never overwritten.
+
+Metadata jobs are persisted in SQLite and processed by the API process. Set
+`METADATA_WORKER_ENABLED=false` to disable processing while leaving queued jobs
+intact. The fetcher accepts only public HTTP/HTTPS destinations on ports 80 and
+443, validates every redirect, and limits response time and size.
+
 ## Docker
 
 Build and start the development container:

@@ -6,6 +6,5 @@
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
-  "globalSetup": "<rootDir>/setup-e2e.ts",
-  "setupFiles": ["<rootDir>/env-e2e.ts"]
+  "globalSetup": "<rootDir>/setup-e2e.ts"
 }

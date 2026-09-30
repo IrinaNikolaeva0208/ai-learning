@@ -70,7 +70,11 @@ export class BookmarksService {
         }
       }
 
-      return repository.update(id, data);
+      return repository.update(
+        id,
+        data,
+        data.url !== undefined && data.url !== bookmark.url,
+      );
     });
   }
 

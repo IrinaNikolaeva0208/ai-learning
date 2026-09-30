@@ -23,7 +23,7 @@ COPY package.json package-lock.json ./
 COPY prisma ./prisma
 RUN npm ci
 
-COPY tsconfig*.json nest-cli.json ./
+COPY tsconfig*.json nest-cli.json .env.test ./
 COPY src ./src
 COPY test ./test
 

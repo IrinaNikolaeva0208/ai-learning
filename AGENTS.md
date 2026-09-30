@@ -72,7 +72,7 @@ The `Dockerfile` is staged `base → development → build → runtime`. Points 
 - Validate request payloads with `class-validator` DTOs. The global `ValidationPipe` in `src/main.ts` runs with `whitelist`, `forbidNonWhitelisted`, and `transform` on, so DTO fields must be decorated or they are stripped/rejected.
 - Config comes from `@nestjs/config` (`ConfigModule.forRoot({ isGlobal: true })`); read env via `ConfigService`, not bare `process.env`.
 - **`DATABASE_URL` is relative to `prisma/`, not the repo root** — hence `file:../data/dev.db` for a file at `data/dev.db`. Copy `.env.example` to `.env` for local runs.
-- Unit tests mock `PrismaService` with a plain object provider (see `src/app.controller.spec.ts`); they must not touch a real database. E2E tests use a real one: `test/setup-e2e.ts` deletes `data/test.db` and rebuilds it with `prisma db push`, and `test/env-e2e.ts` points each worker at it, so e2e never touches `data/dev.db`. With no models, the e2e database is empty and only connectivity is asserted.
+- Unit tests mock `PrismaService` with a plain object provider (see `src/app.controller.spec.ts`); they must not touch a real database. E2E tests use a real one: `.env.test` points every process at `data/test.db`, and `test/setup-e2e.ts` deletes and rebuilds it with `prisma db push`, so e2e never touches `data/dev.db`.
 - Prisma returns SQLite integers from `$queryRaw` as `BigInt` (`1n`, not `1`) — matters when asserting on raw results.
 - ESLint uses `recommendedTypeChecked`, so lint errors can be type errors — fix them rather than casting to `any`.
 - Formatting runs automatically via a Prettier format-on-edit hook (`.claude/settings.json`) on JS/TS/JSON files.
