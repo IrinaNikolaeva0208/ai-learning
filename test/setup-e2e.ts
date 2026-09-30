@@ -17,9 +17,6 @@ module.exports = (): void => {
     rmSync(`${dbFile}${suffix}`, { force: true });
   }
 
-  // Prisma resolves relative file: URLs from the schema's directory (prisma/).
-  process.env.DATABASE_URL = 'file:../data/test.db';
-
   execSync('npx prisma db push --skip-generate', {
     stdio: 'inherit',
     env: process.env,

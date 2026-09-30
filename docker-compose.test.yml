@@ -8,11 +8,9 @@ services:
       # Dev dependencies are needed for Jest and the Prisma CLI.
       target: development
     image: bookmark-manager-test
-    environment:
-      NODE_ENV: test
-      METADATA_WORKER_ENABLED: 'false'
-      # Separate database file; test/setup-e2e.ts recreates it on every run.
-      DATABASE_URL: file:../data/test.db
+    # Shared with local e2e runs; setup-e2e.ts recreates this database.
+    env_file:
+      - .env.test
     volumes:
       # Current sources, so tests run without rebuilding the image.
       - ./src:/app/src
