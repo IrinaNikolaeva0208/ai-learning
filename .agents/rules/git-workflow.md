@@ -17,14 +17,6 @@ repository handoff.
 - `--no-verify` MUST NOT be used without explicit prior user approval. The
   reason MUST be reported with the resulting commit and recorded as an approved
   exception in the applicable rule if it persists.
-- While `.agents/rules/temporary-exceptions.md` exists, agents MAY make local
-  commits but MUST NOT push or create a pull request.
-- Before deleting the temporary-exceptions file, an agent MUST fix every listed
-  violation and pass applicable verification. Deleting it only to bypass the
-  push gate is prohibited.
-- Before every push or pull-request creation, an agent MUST confirm that the
-  temporary-exceptions file is absent and changed code follows all applicable
-  rules.
 - Pull requests MUST use the repository template, include a short description,
   report verification, and identify any user-approved permanent exception.
 
@@ -43,7 +35,6 @@ exception but MUST NOT approve one itself.
 - Is the branch based on the intended `main` revision?
 - Were commit, push, and PR actions explicitly requested?
 - Did hooks and applicable e2e verification pass?
-- Is the temporary-exceptions file absent before push or PR creation?
 - Does the PR include the short description and required verification details?
 
 ## Related rules

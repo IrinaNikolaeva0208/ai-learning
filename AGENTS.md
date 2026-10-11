@@ -48,8 +48,7 @@ The closest applicable `AGENTS.md` overrides this root file. If repository rules
 still conflict, stop and ask the user.
 
 Only the user may approve an exception. Agents may propose one but cannot
-approve it. If `.agents/rules/temporary-exceptions.md` exists, agents may commit
-locally but MUST NOT push or create a pull request.
+approve it.
 
 ## Commands
 
@@ -125,7 +124,6 @@ Preserve these invariants:
 - `npm run lint:check`, `npm run build`, and `npm run test:cov` pass.
 - E2E tests pass when required by `testing.md`.
 - Schema changes include a migration and ownership-table review.
-- No temporary-exceptions file exists before an agent pushes or creates a PR.
 - Commit, push, and PR actions occur only when requested.
 
 ## Shared skills
