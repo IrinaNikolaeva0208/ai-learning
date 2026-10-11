@@ -1,8 +1,8 @@
 # Abort the commit as soon as any step fails.
 set -e
 
-# Lint and format the staged files (fixes are re-staged automatically),
-# then run the unit test suite. See "lint-staged" in package.json.
+# Fix and format staged files, then verify the entire project without mutation.
 npx lint-staged
-
-npm test
+npm run lint:check
+npm run build
+npm run test:cov

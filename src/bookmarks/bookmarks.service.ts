@@ -6,16 +6,18 @@ import {
 } from '@nestjs/common';
 
 import { BookmarksRepository } from './bookmarks.repository';
-import {
-  Bookmark,
-  BookmarkPage,
-  CreateBookmarkData,
-  UpdateBookmarkData,
-} from './types/bookmark.types';
+import { BookmarkMapperService } from './bookmark-mapper.service';
+import { BookmarkPage } from './types/bookmark-page.interface';
+import { Bookmark } from './types/bookmark.interface';
+import { CreateBookmarkData } from './types/create-bookmark-data.interface';
+import { UpdateBookmarkData } from './types/update-bookmark-data.interface';
 
 @Injectable()
 export class BookmarksService {
-  constructor(private readonly repository: BookmarksRepository) {}
+  constructor(
+    private readonly repository: BookmarksRepository,
+    private readonly mapper: BookmarkMapperService,
+  ) {}
 
   async create(data: CreateBookmarkData): Promise<Bookmark> {
     return this.repository.withTransaction(async (repository) => {
@@ -23,22 +25,13 @@ export class BookmarksService {
         throw new ConflictException('A bookmark with this URL already exists');
       }
 
-      return repository.create(data);
+      return this.mapper.toBookmark(await repository.create(data));
     });
   }
 
   async findAll(page: number, limit: number): Promise<BookmarkPage> {
-    const { data, total } = await this.repository.findPage(page, limit);
-
-    return {
-      data,
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
+    const pageData = await this.repository.findPage(page, limit);
+    return this.mapper.toBookmarkPage(pageData, page, limit);
   }
 
   async findOne(id: string): Promise<Bookmark> {
@@ -48,7 +41,7 @@ export class BookmarksService {
       throw new NotFoundException('Bookmark not found');
     }
 
-    return bookmark;
+    return this.mapper.toBookmark(bookmark);
   }
 
   async update(id: string, data: UpdateBookmarkData): Promise<Bookmark> {
@@ -70,11 +63,12 @@ export class BookmarksService {
         }
       }
 
-      return repository.update(
+      const updated = await repository.update(
         id,
         data,
         data.url !== undefined && data.url !== bookmark.url,
       );
+      return this.mapper.toBookmark(updated);
     });
   }
 

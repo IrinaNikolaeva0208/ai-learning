@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import * as cheerio from 'cheerio';
 
-import { ExtractedPageMetadata } from './bookmark-metadata.types';
+import { ExtractedPageMetadata } from './types/extracted-page-metadata.interface';
 
 const TITLE_MAX_LENGTH = 500;
 const DESCRIPTION_MAX_LENGTH = 2_000;
 const URL_MAX_LENGTH = 2_048;
 
 @Injectable()
-export class PageMetadataExtractor {
+export class PageMetadataExtractorService {
   extract(html: Buffer, resolvedUrl: string): ExtractedPageMetadata {
     const $ = cheerio.loadBuffer(html);
 

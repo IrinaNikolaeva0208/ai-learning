@@ -1,14 +1,12 @@
 import { ConfigService } from '@nestjs/config';
 
 import { BookmarkMetadataRepository } from './bookmark-metadata.repository';
-import { BookmarkMetadataWorker } from './bookmark-metadata.worker';
-import { ClaimedMetadataJob } from './bookmark-metadata.types';
-import {
-  MetadataFetchError,
-  PageMetadataFetcher,
-} from './page-metadata.fetcher';
+import { BookmarkMetadataWorkerService } from './bookmark-metadata-worker.service';
+import { MetadataFetchError } from './metadata-fetch.error';
+import { PageMetadataFetcherService } from './page-metadata-fetcher.service';
+import { ClaimedMetadataJob } from './types/claimed-metadata-job.interface';
 
-describe('BookmarkMetadataWorker', () => {
+describe('BookmarkMetadataWorkerService', () => {
   const job: ClaimedMetadataJob = {
     bookmarkId: '11111111-1111-4111-8111-111111111111',
     url: 'https://example.com',
@@ -31,7 +29,7 @@ describe('BookmarkMetadataWorker', () => {
     fail: jest.Mock;
   };
   let fetcher: { fetch: jest.Mock };
-  let worker: BookmarkMetadataWorker;
+  let worker: BookmarkMetadataWorkerService;
 
   beforeEach(() => {
     config = { get: jest.fn() };
@@ -41,10 +39,10 @@ describe('BookmarkMetadataWorker', () => {
       fail: jest.fn(),
     };
     fetcher = { fetch: jest.fn() };
-    worker = new BookmarkMetadataWorker(
+    worker = new BookmarkMetadataWorkerService(
       config as unknown as ConfigService,
       repository as unknown as BookmarkMetadataRepository,
-      fetcher as unknown as PageMetadataFetcher,
+      fetcher as unknown as PageMetadataFetcherService,
     );
   });
 

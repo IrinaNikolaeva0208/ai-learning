@@ -1,6 +1,6 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { BookmarksRepository } from './bookmarks.repository';
-import { Bookmark } from './types/bookmark.types';
+import { Bookmark } from './types/bookmark.interface';
 
 describe('BookmarksRepository', () => {
   const bookmark: Bookmark = {
@@ -116,7 +116,7 @@ describe('BookmarksRepository', () => {
     bookmarkDelegate.create.mockResolvedValue(bookmarkRecord);
     const data = { title: bookmark.title, url: bookmark.url };
 
-    await expect(repository.create(data)).resolves.toEqual(bookmark);
+    await expect(repository.create(data)).resolves.toEqual(bookmarkRecord);
     expect(bookmarkDelegate.create).toHaveBeenCalledWith({
       data: { ...data, metadata: { create: {} } },
       include: { metadata: true },
@@ -152,7 +152,7 @@ describe('BookmarksRepository', () => {
 
     await expect(repository.findPage(2, 10)).resolves.toEqual({
       total: 3,
-      data: [bookmark],
+      data: [bookmarkRecord],
     });
     expect(bookmarkDelegate.findMany).toHaveBeenCalledWith({
       skip: 10,
@@ -189,16 +189,5 @@ describe('BookmarksRepository', () => {
     await repository.update(bookmark.id, { url: 'https://example.com' }, true);
 
     expect(bookmarkDelegate.update).toHaveBeenCalledTimes(1);
-  });
-
-  it('rejects database records without their required metadata row', async () => {
-    bookmarkDelegate.findUnique.mockResolvedValue({
-      ...bookmarkRecord,
-      metadata: null,
-    });
-
-    await expect(repository.findById(bookmark.id)).rejects.toThrow(
-      `Bookmark ${bookmark.id} has no metadata record`,
-    );
   });
 });

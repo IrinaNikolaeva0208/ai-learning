@@ -1,12 +1,10 @@
 import { promises as dns } from 'node:dns';
 import { Agent, fetch, Response } from 'undici';
 
-import { PageMetadataExtractor } from './page-metadata.extractor';
-import {
-  MetadataFetchError,
-  PageMetadataFetcher,
-  createPinnedLookup,
-} from './page-metadata.fetcher';
+import { MetadataFetchError } from './metadata-fetch.error';
+import { PageMetadataExtractorService } from './page-metadata-extractor.service';
+import { PageMetadataFetcherService } from './page-metadata-fetcher.service';
+import { createPinnedLookup } from './pinned-lookup.factory';
 
 jest.mock('undici', () => {
   const actual = jest.requireActual<typeof import('undici')>('undici');
@@ -17,7 +15,7 @@ jest.mock('undici', () => {
   };
 });
 
-describe('PageMetadataFetcher', () => {
+describe('PageMetadataFetcherService', () => {
   type LookupAll = (
     hostname: string,
     options: { all: true; verbatim: true },
@@ -25,10 +23,12 @@ describe('PageMetadataFetcher', () => {
 
   const mockedFetch = fetch as jest.MockedFunction<typeof fetch>;
   const mockedAgent = Agent as unknown as jest.Mock;
-  let fetcher: PageMetadataFetcher;
+  let fetcher: PageMetadataFetcherService;
 
   beforeEach(() => {
-    fetcher = new PageMetadataFetcher(new PageMetadataExtractor());
+    fetcher = new PageMetadataFetcherService(
+      new PageMetadataExtractorService(),
+    );
     mockedFetch.mockReset();
     mockedAgent.mockClear();
   });

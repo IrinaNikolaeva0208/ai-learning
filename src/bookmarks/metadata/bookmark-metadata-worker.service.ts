@@ -7,10 +7,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 
 import { BookmarkMetadataRepository } from './bookmark-metadata.repository';
-import {
-  MetadataFetchError,
-  PageMetadataFetcher,
-} from './page-metadata.fetcher';
+import { MetadataFetchError } from './metadata-fetch.error';
+import { PageMetadataFetcherService } from './page-metadata-fetcher.service';
 
 const POLL_INTERVAL_MS = 1_000;
 const MAX_JOBS_PER_RUN = 10;
@@ -18,10 +16,10 @@ const MAX_ATTEMPTS = 3;
 const RETRY_DELAYS_MS = [30_000, 5 * 60_000];
 
 @Injectable()
-export class BookmarkMetadataWorker
+export class BookmarkMetadataWorkerService
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
-  private readonly logger = new Logger(BookmarkMetadataWorker.name);
+  private readonly logger = new Logger(BookmarkMetadataWorkerService.name);
   private timer?: NodeJS.Timeout;
   private activeRun?: Promise<void>;
   private stopping = false;
@@ -29,7 +27,7 @@ export class BookmarkMetadataWorker
   constructor(
     private readonly config: ConfigService,
     private readonly repository: BookmarkMetadataRepository,
-    private readonly fetcher: PageMetadataFetcher,
+    private readonly fetcher: PageMetadataFetcherService,
   ) {}
 
   onApplicationBootstrap(): void {

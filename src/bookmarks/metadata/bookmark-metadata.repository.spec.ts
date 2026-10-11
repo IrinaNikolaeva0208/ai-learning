@@ -1,9 +1,7 @@
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { BookmarkMetadataRepository } from './bookmark-metadata.repository';
-import {
-  ClaimedMetadataJob,
-  ExtractedPageMetadata,
-} from './bookmark-metadata.types';
+import { ClaimedMetadataJob } from './types/claimed-metadata-job.interface';
+import { ExtractedPageMetadata } from './types/extracted-page-metadata.interface';
 
 describe('BookmarkMetadataRepository', () => {
   const now = new Date('2026-01-01T00:00:00.000Z');

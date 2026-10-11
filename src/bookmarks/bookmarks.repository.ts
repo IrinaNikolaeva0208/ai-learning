@@ -2,19 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  Bookmark,
-  BookmarkMetadataStatus,
-  BookmarkPageData,
-  CreateBookmarkData,
-  UpdateBookmarkData,
-} from './types/bookmark.types';
+import { BookmarkPageData } from './types/bookmark-page-data.interface';
+import { BookmarkRecord } from './types/bookmark-record.type';
+import { CreateBookmarkData } from './types/create-bookmark-data.interface';
+import { UpdateBookmarkData } from './types/update-bookmark-data.interface';
 
 const bookmarkWithMetadata = {
   include: { metadata: true },
 } satisfies Prisma.BookmarkDefaultArgs;
-
-type BookmarkRecord = Prisma.BookmarkGetPayload<typeof bookmarkWithMetadata>;
 
 @Injectable()
 export class BookmarksRepository {
@@ -40,31 +35,25 @@ export class BookmarksRepository {
     });
   }
 
-  async create(data: CreateBookmarkData): Promise<Bookmark> {
-    const bookmark = await this.bookmarks.create({
+  async create(data: CreateBookmarkData): Promise<BookmarkRecord> {
+    return this.bookmarks.create({
       data: { ...data, metadata: { create: {} } },
       ...bookmarkWithMetadata,
     });
-
-    return this.toBookmark(bookmark);
   }
 
-  async findById(id: string): Promise<Bookmark | null> {
-    const bookmark = await this.bookmarks.findUnique({
+  findById(id: string): Promise<BookmarkRecord | null> {
+    return this.bookmarks.findUnique({
       where: { id },
       ...bookmarkWithMetadata,
     });
-
-    return bookmark ? this.toBookmark(bookmark) : null;
   }
 
-  async findByUrl(url: string): Promise<Bookmark | null> {
-    const bookmark = await this.bookmarks.findUnique({
+  findByUrl(url: string): Promise<BookmarkRecord | null> {
+    return this.bookmarks.findUnique({
       where: { url },
       ...bookmarkWithMetadata,
     });
-
-    return bookmark ? this.toBookmark(bookmark) : null;
   }
 
   async findPage(page: number, limit: number): Promise<BookmarkPageData> {
@@ -78,15 +67,15 @@ export class BookmarksRepository {
       }),
     ]);
 
-    return { data: data.map((bookmark) => this.toBookmark(bookmark)), total };
+    return { data, total };
   }
 
   async update(
     id: string,
     data: UpdateBookmarkData,
     resetMetadata = false,
-  ): Promise<Bookmark> {
-    const bookmark = await this.bookmarks.update({
+  ): Promise<BookmarkRecord> {
+    return this.bookmarks.update({
       where: { id },
       data: {
         ...data,
@@ -112,38 +101,9 @@ export class BookmarksRepository {
       },
       ...bookmarkWithMetadata,
     });
-
-    return this.toBookmark(bookmark);
   }
 
   async delete(id: string): Promise<void> {
     await this.bookmarks.delete({ where: { id } });
-  }
-
-  private toBookmark(record: BookmarkRecord): Bookmark {
-    if (!record.metadata) {
-      throw new Error(`Bookmark ${record.id} has no metadata record`);
-    }
-
-    return {
-      id: record.id,
-      title: record.title,
-      url: record.url,
-      description: record.description,
-      metadata: {
-        status: record.metadata.status as BookmarkMetadataStatus,
-        pageTitle: record.metadata.pageTitle,
-        description: record.metadata.description,
-        openGraph: {
-          title: record.metadata.openGraphTitle,
-          description: record.metadata.openGraphDescription,
-          imageUrl: record.metadata.openGraphImageUrl,
-        },
-        resolvedUrl: record.metadata.resolvedUrl,
-        fetchedAt: record.metadata.fetchedAt,
-      },
-      createdAt: record.createdAt,
-      updatedAt: record.updatedAt,
-    };
   }
 }
