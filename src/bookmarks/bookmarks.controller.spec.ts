@@ -1,6 +1,6 @@
 import { BookmarksController } from './bookmarks.controller';
 import { BookmarksService } from './bookmarks.service';
-import { Bookmark } from './types/bookmark.types';
+import { Bookmark } from './types/bookmark.interface';
 
 describe('BookmarksController', () => {
   const bookmark: Bookmark = {

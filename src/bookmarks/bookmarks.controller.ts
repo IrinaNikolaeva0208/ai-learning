@@ -16,7 +16,8 @@ import { BookmarksService } from './bookmarks.service';
 import { CreateBookmarkDto } from './dto/create-bookmark.dto';
 import { ListBookmarksQueryDto } from './dto/list-bookmarks-query.dto';
 import { UpdateBookmarkDto } from './dto/update-bookmark.dto';
-import { Bookmark, BookmarkPage } from './types/bookmark.types';
+import { BookmarkPage } from './types/bookmark-page.interface';
+import { Bookmark } from './types/bookmark.interface';
 
 @Controller('bookmarks')
 export class BookmarksController {

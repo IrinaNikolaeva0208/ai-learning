@@ -1,7 +1,7 @@
-import { PageMetadataExtractor } from './page-metadata.extractor';
+import { PageMetadataExtractorService } from './page-metadata-extractor.service';
 
-describe('PageMetadataExtractor', () => {
-  const extractor = new PageMetadataExtractor();
+describe('PageMetadataExtractorService', () => {
+  const extractor = new PageMetadataExtractorService();
 
   it('extracts and normalizes core preview metadata', () => {
     const html = Buffer.from(`

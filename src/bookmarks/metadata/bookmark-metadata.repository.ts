@@ -1,11 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
-import { PrismaService } from '../prisma/prisma.service';
-import {
-  ClaimedMetadataJob,
-  ExtractedPageMetadata,
-} from './bookmark-metadata.types';
+import { PrismaService } from '../../prisma/prisma.service';
+import { ClaimedMetadataJob } from './types/claimed-metadata-job.interface';
+import { ExtractedPageMetadata } from './types/extracted-page-metadata.interface';
 
 const LEASE_MS = 30_000;
 

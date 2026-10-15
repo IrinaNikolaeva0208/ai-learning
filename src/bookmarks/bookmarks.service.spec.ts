@@ -6,7 +6,7 @@ import {
 
 import { BookmarksRepository } from './bookmarks.repository';
 import { BookmarksService } from './bookmarks.service';
-import { Bookmark } from './types/bookmark.types';
+import { Bookmark } from './types/bookmark.interface';
 
 describe('BookmarksService', () => {
   const bookmark: Bookmark = {
@@ -35,6 +35,10 @@ describe('BookmarksService', () => {
     update: jest.Mock;
     delete: jest.Mock;
   };
+  let mapper: {
+    toBookmark: jest.Mock;
+    toBookmarkPage: jest.Mock;
+  };
   let service: BookmarksService;
 
   beforeEach(() => {
@@ -51,8 +55,27 @@ describe('BookmarksService', () => {
       (callback: (transaction: typeof repository) => unknown) =>
         callback(repository),
     );
+    mapper = {
+      toBookmark: jest.fn((value: Bookmark) => value),
+      toBookmarkPage: jest.fn(
+        (
+          pageData: { data: Bookmark[]; total: number },
+          page: number,
+          limit: number,
+        ) => ({
+          data: pageData.data,
+          meta: {
+            page,
+            limit,
+            total: pageData.total,
+            totalPages: Math.ceil(pageData.total / limit),
+          },
+        }),
+      ),
+    };
     service = new BookmarksService(
       repository as unknown as BookmarksRepository,
+      mapper,
     );
   });
 

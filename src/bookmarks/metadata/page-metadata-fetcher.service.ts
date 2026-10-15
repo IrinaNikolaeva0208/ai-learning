@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { promises as dns } from 'node:dns';
-import { LookupFunction } from 'node:net';
 import ipaddr from 'ipaddr.js';
 import { Agent, fetch } from 'undici';
 
-import { ExtractedPageMetadata } from './bookmark-metadata.types';
-import { PageMetadataExtractor } from './page-metadata.extractor';
+import { MetadataFetchError } from './metadata-fetch.error';
+import { PageMetadataExtractorService } from './page-metadata-extractor.service';
+import { createPinnedLookup } from './pinned-lookup.factory';
+import { ExtractedPageMetadata } from './types/extracted-page-metadata.interface';
+import { ResolvedAddress } from './types/resolved-address.interface';
 
 const FETCH_TIMEOUT_MS = 5_000;
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -13,42 +15,9 @@ const MAX_REDIRECTS = 3;
 const ALLOWED_CONTENT_TYPES = new Set(['text/html', 'application/xhtml+xml']);
 const RETRYABLE_STATUS_CODES = new Set([408, 425, 429]);
 
-interface ResolvedAddress {
-  address: string;
-  family: 4 | 6;
-}
-
-export function createPinnedLookup(
-  addresses: ResolvedAddress[],
-): LookupFunction {
-  return (_hostname, options, callback): void => {
-    const matching = addresses.filter(
-      ({ family }) => !options.family || options.family === family,
-    );
-    const selected = matching.length > 0 ? matching : addresses;
-
-    if (options.all) {
-      callback(null, selected);
-      return;
-    }
-
-    callback(null, selected[0].address, selected[0].family);
-  };
-}
-
-export class MetadataFetchError extends Error {
-  constructor(
-    readonly code: string,
-    readonly retryable: boolean,
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
 @Injectable()
-export class PageMetadataFetcher {
-  constructor(private readonly extractor: PageMetadataExtractor) {}
+export class PageMetadataFetcherService {
+  constructor(private readonly extractor: PageMetadataExtractorService) {}
 
   async fetch(url: string): Promise<ExtractedPageMetadata> {
     try {
