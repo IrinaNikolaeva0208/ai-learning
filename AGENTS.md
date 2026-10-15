@@ -38,8 +38,9 @@ Also read every rule document applicable to the work:
   repositories, transactions, or database configuration.
 - [operations.md](.agents/rules/operations.md) for configuration, Docker,
   health checks, workers, startup, shutdown, or deployment.
-- [git-workflow.md](.agents/rules/git-workflow.md) before branch, commit, push,
-  or pull-request operations.
+- [git-workflow.md](.agents/rules/git-workflow.md) before starting work that may
+  change repository files or performing branch, commit, push, or pull-request
+  operations.
 
 Reviews MUST load the rules governing the reviewed files. Each rule has one
 authoritative home; follow its cross-references instead of inventing a duplicate.
@@ -124,7 +125,8 @@ Preserve these invariants:
 - `npm run lint:check`, `npm run build`, and `npm run test:cov` pass.
 - E2E tests pass when required by `testing.md`.
 - Schema changes include a migration and ownership-table review.
-- Commit, push, and PR actions occur only when requested.
+- The branch decision and automatic draft-PR delivery follow
+  `git-workflow.md`, unless the user opts out.
 
 ## Shared skills
 

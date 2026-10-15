@@ -2,6 +2,8 @@
 
 <!-- Briefly explain what changed and why. -->
 
+**Target branch:** <!-- Name the pull request base branch. -->
+
 ## Verification
 
 - [ ] I reviewed the rule documents applicable to this change.
