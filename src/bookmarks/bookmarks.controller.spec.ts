@@ -53,10 +53,10 @@ describe('BookmarksController', () => {
     await expect(
       controller.create({ title: bookmark.title, url: bookmark.url }),
     ).resolves.toBe(bookmark);
-    await expect(controller.findAll({ page: 1, limit: 20 })).resolves.toBe(
-      page,
-    );
-    expect(service.findAll).toHaveBeenCalledWith(1, 20);
+    await expect(
+      controller.findAll({ page: 1, limit: 20, search: 'Nest' }),
+    ).resolves.toBe(page);
+    expect(service.findAll).toHaveBeenCalledWith(1, 20, 'Nest');
   });
 
   it('delegates item reads, updates and deletes', async () => {

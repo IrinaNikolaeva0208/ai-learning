@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client';
+
 import { PrismaService } from '../prisma/prisma.service';
 import { BookmarksRepository } from './bookmarks.repository';
 import { Bookmark } from './types/bookmark.interface';
@@ -50,6 +52,7 @@ describe('BookmarksRepository', () => {
     delete: jest.Mock;
   };
   let transactionDelegate: typeof bookmarkDelegate;
+  let queryRaw: jest.Mock;
   let prisma: { bookmark: typeof bookmarkDelegate; $transaction: jest.Mock };
   let repository: BookmarksRepository;
 
@@ -65,14 +68,19 @@ describe('BookmarksRepository', () => {
   beforeEach(() => {
     bookmarkDelegate = makeDelegate();
     transactionDelegate = makeDelegate();
+    queryRaw = jest.fn();
     prisma = {
       bookmark: bookmarkDelegate,
       $transaction: jest.fn().mockImplementation((argument: unknown) => {
         if (typeof argument === 'function') {
           const callback = argument as (client: {
             bookmark: typeof transactionDelegate;
+            $queryRaw: typeof queryRaw;
           }) => Promise<unknown>;
-          return callback({ bookmark: transactionDelegate });
+          return callback({
+            bookmark: transactionDelegate,
+            $queryRaw: queryRaw,
+          });
         }
 
         return Promise.all(argument as Promise<unknown>[]);
@@ -164,6 +172,44 @@ describe('BookmarksRepository', () => {
       expect.any(Promise),
       expect.any(Promise),
     ]);
+  });
+
+  it('searches literal user-field text with bound values and pagination', async () => {
+    const search = `%_' OR 1=1 --`;
+    queryRaw
+      .mockResolvedValueOnce([{ total: 1n }])
+      .mockResolvedValueOnce([{ id: bookmark.id }]);
+    transactionDelegate.findMany.mockResolvedValue([bookmarkRecord]);
+
+    await expect(repository.findPage(2, 10, search)).resolves.toEqual({
+      total: 1,
+      data: [bookmarkRecord],
+    });
+
+    const queries = queryRaw.mock.calls as Array<[Prisma.Sql]>;
+    const countQuery = queries[0][0];
+    const pageQuery = queries[1][0];
+    expect(countQuery.sql).toContain('instr(lower("title"), lower(?))');
+    expect(countQuery.sql).toContain('instr(lower("url"), lower(?))');
+    expect(countQuery.sql).toContain('instr(lower("description"), lower(?))');
+    expect(countQuery.sql).not.toContain(search);
+    expect(countQuery.values).toEqual([search, search, search]);
+    expect(pageQuery.values).toEqual([search, search, search, 10, 10]);
+    expect(transactionDelegate.findMany).toHaveBeenCalledWith({
+      where: { id: { in: [bookmark.id] } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      include: { metadata: true },
+    });
+  });
+
+  it('returns the filtered total without loading records for an empty page', async () => {
+    queryRaw.mockResolvedValueOnce([{ total: 3n }]).mockResolvedValueOnce([]);
+
+    await expect(repository.findPage(4, 10, 'missing')).resolves.toEqual({
+      total: 3,
+      data: [],
+    });
+    expect(transactionDelegate.findMany).not.toHaveBeenCalled();
   });
 
   it('updates and deletes by id', async () => {

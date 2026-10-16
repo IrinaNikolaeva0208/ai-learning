@@ -30,7 +30,7 @@ export class BookmarksController {
 
   @Get()
   findAll(@Query() query: ListBookmarksQueryDto): Promise<BookmarkPage> {
-    return this.bookmarksService.findAll(query.page, query.limit);
+    return this.bookmarksService.findAll(query.page, query.limit, query.search);
   }
 
   @Get(':id')
