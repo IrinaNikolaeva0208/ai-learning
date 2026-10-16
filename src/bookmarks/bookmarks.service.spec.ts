@@ -108,10 +108,11 @@ describe('BookmarksService', () => {
   it('returns pagination metadata', async () => {
     repository.findPage.mockResolvedValue({ data: [bookmark], total: 41 });
 
-    await expect(service.findAll(2, 20)).resolves.toEqual({
+    await expect(service.findAll(2, 20, 'Nest')).resolves.toEqual({
       data: [bookmark],
       meta: { page: 2, limit: 20, total: 41, totalPages: 3 },
     });
+    expect(repository.findPage).toHaveBeenCalledWith(2, 20, 'Nest');
   });
 
   describe('findOne', () => {

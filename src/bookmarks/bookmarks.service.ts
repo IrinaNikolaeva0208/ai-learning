@@ -29,8 +29,12 @@ export class BookmarksService {
     });
   }
 
-  async findAll(page: number, limit: number): Promise<BookmarkPage> {
-    const pageData = await this.repository.findPage(page, limit);
+  async findAll(
+    page: number,
+    limit: number,
+    search?: string,
+  ): Promise<BookmarkPage> {
+    const pageData = await this.repository.findPage(page, limit, search);
     return this.mapper.toBookmarkPage(pageData, page, limit);
   }
 

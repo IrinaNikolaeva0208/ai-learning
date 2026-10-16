@@ -124,11 +124,28 @@ describe('Bookmark DTOs', () => {
       const result = await transformAndValidate(ListBookmarksQueryDto, {
         page: '2',
         limit: '100',
+        search: '  NestJS guide  ',
       });
 
       expect(result.properties).toEqual([]);
-      expect(result.instance).toMatchObject({ page: 2, limit: 100 });
+      expect(result.instance).toMatchObject({
+        page: 2,
+        limit: 100,
+        search: 'NestJS guide',
+      });
     });
+
+    it.each(['x', 'x'.repeat(200)])(
+      'accepts a search value at a valid length boundary',
+      async (search) => {
+        const result = await transformAndValidate(ListBookmarksQueryDto, {
+          search,
+        });
+
+        expect(result.properties).toEqual([]);
+        expect(result.instance.search).toBe(search);
+      },
+    );
 
     it.each([
       [{ page: '0' }, 'page'],
@@ -139,5 +156,16 @@ describe('Bookmark DTOs', () => {
       const result = await transformAndValidate(ListBookmarksQueryDto, input);
       expect(result.properties).toContain(property);
     });
+
+    it.each(['   ', 'x'.repeat(201), 42, ['one', 'two']])(
+      'rejects invalid search value %#',
+      async (search) => {
+        const result = await transformAndValidate(ListBookmarksQueryDto, {
+          search,
+        });
+
+        expect(result.properties).toContain('search');
+      },
+    );
   });
 });

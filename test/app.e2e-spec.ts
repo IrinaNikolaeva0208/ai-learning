@@ -332,13 +332,142 @@ describe('Bookmark Manager (e2e)', () => {
       });
   });
 
+  it('searches user fields with filtered pagination and stable ordering', async () => {
+    const rows = [
+      {
+        id: '11111111-1111-4111-8111-111111111111',
+        title: 'Description match',
+        url: 'https://example.com/description',
+        description: 'A practical Guide for APIs',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        metadata: { create: {} },
+      },
+      {
+        id: '22222222-2222-4222-8222-222222222222',
+        title: 'URL match',
+        url: 'https://example.com/nestjs-guide',
+        description: null,
+        createdAt: new Date('2026-01-02T00:00:00.000Z'),
+        metadata: { create: {} },
+      },
+      {
+        id: '33333333-3333-4333-8333-333333333333',
+        title: 'NestJS Guide',
+        url: 'https://example.com/title',
+        description: null,
+        createdAt: new Date('2026-01-03T00:00:00.000Z'),
+        metadata: { create: {} },
+      },
+      {
+        id: '44444444-4444-4444-8444-444444444444',
+        title: 'Metadata only',
+        url: 'https://example.com/metadata',
+        description: null,
+        createdAt: new Date('2026-01-04T00:00:00.000Z'),
+        metadata: { create: { pageTitle: 'Fetched guide metadata' } },
+      },
+    ];
+    await Promise.all(rows.map((data) => prisma.bookmark.create({ data })));
+
+    const firstPage = await request(app.getHttpServer())
+      .get('/bookmarks')
+      .query({ search: '  GUIDE  ', page: 1, limit: 2 })
+      .expect(200);
+    expect(
+      (firstPage.body as { data: ApiBookmark[] }).data.map(({ id }) => id),
+    ).toEqual([rows[2].id, rows[1].id]);
+    expect(firstPage.body).toMatchObject({
+      meta: { page: 1, limit: 2, total: 3, totalPages: 2 },
+    });
+
+    const secondPage = await request(app.getHttpServer())
+      .get('/bookmarks')
+      .query({ search: 'guide', page: 2, limit: 2 })
+      .expect(200);
+    expect(
+      (secondPage.body as { data: ApiBookmark[] }).data.map(({ id }) => id),
+    ).toEqual([rows[0].id]);
+
+    await request(app.getHttpServer())
+      .get('/bookmarks')
+      .query({ search: 'guide', page: 3, limit: 2 })
+      .expect(200)
+      .expect({
+        data: [],
+        meta: { page: 3, limit: 2, total: 3, totalPages: 2 },
+      });
+  });
+
+  it('treats special search characters as literal text', async () => {
+    const rows = [
+      {
+        id: '11111111-1111-4111-8111-111111111111',
+        title: '100% coverage',
+        url: 'https://example.com/percent',
+        metadata: { create: {} },
+      },
+      {
+        id: '22222222-2222-4222-8222-222222222222',
+        title: '100X coverage',
+        url: 'https://example.com/percent-decoy',
+        metadata: { create: {} },
+      },
+      {
+        id: '33333333-3333-4333-8333-333333333333',
+        title: 'Underscore',
+        url: 'https://example.com/underscore',
+        description: 'snake_case',
+        metadata: { create: {} },
+      },
+      {
+        id: '44444444-4444-4444-8444-444444444444',
+        title: 'Underscore decoy',
+        url: 'https://example.com/underscore-decoy',
+        description: 'snakeXcase',
+        metadata: { create: {} },
+      },
+    ];
+    await Promise.all(rows.map((data) => prisma.bookmark.create({ data })));
+
+    const percentResponse = await request(app.getHttpServer())
+      .get('/bookmarks')
+      .query({ search: '%' })
+      .expect(200);
+    expect(
+      (percentResponse.body as { data: ApiBookmark[] }).data.map(
+        ({ id }) => id,
+      ),
+    ).toEqual([rows[0].id]);
+
+    const underscoreResponse = await request(app.getHttpServer())
+      .get('/bookmarks')
+      .query({ search: '_' })
+      .expect(200);
+    expect(
+      (underscoreResponse.body as { data: ApiBookmark[] }).data.map(
+        ({ id }) => id,
+      ),
+    ).toEqual([rows[2].id]);
+
+    await request(app.getHttpServer())
+      .get('/bookmarks')
+      .query({ search: "' OR 1=1 --" })
+      .expect(200)
+      .expect({
+        data: [],
+        meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
+      });
+  });
+
   it.each([
     '/bookmarks?page=0',
     '/bookmarks?page=1.5',
     '/bookmarks?page=abc',
     '/bookmarks?limit=0',
     '/bookmarks?limit=101',
-  ])('rejects invalid pagination: %s', async (path) => {
+    '/bookmarks?search=%20%20%20',
+    `/bookmarks?search=${'x'.repeat(201)}`,
+  ])('rejects invalid list query: %s', async (path) => {
     await request(app.getHttpServer()).get(path).expect(400);
   });
 });

@@ -50,7 +50,7 @@ All request bodies are JSON. Unknown and server-managed fields are rejected.
 | Method   | Route            | Body / query                                          | Success |
 | -------- | ---------------- | ----------------------------------------------------- | ------- |
 | `POST`   | `/bookmarks`     | `{ title, url, description? }`                        | `201`   |
-| `GET`    | `/bookmarks`     | `page` (default `1`), `limit` (default `20`)          | `200`   |
+| `GET`    | `/bookmarks`     | `page`, `limit`, optional `search`                    | `200`   |
 | `GET`    | `/bookmarks/:id` | —                                                     | `200`   |
 | `PATCH`  | `/bookmarks/:id` | Any non-empty subset of `title`, `url`, `description` | `200`   |
 | `DELETE` | `/bookmarks/:id` | —                                                     | `204`   |
@@ -78,6 +78,12 @@ The maximum `limit` is 100. Results are ordered by creation time newest first,
 with the ID as a stable descending tie-breaker. Pages beyond the final page
 return an empty `data` array. Validation errors and invalid UUIDs return `400`,
 missing bookmarks return `404`, and duplicate URLs return `409`.
+
+The optional `search` query is trimmed and must contain 1–200 characters. It
+matches one literal substring in the bookmark title, URL, or user-provided
+description using ASCII case-insensitive comparison. Characters such as `%`
+and `_` have no wildcard meaning. Search does not include fetched metadata, and
+pagination totals count only matching bookmarks.
 
 Every bookmark response also contains asynchronously fetched page metadata:
 
