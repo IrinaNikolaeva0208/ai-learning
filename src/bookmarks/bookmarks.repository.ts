@@ -11,6 +11,12 @@ const bookmarkWithMetadata = {
   include: { metadata: true },
 } satisfies Prisma.BookmarkDefaultArgs;
 
+// Raw search SQL mirrors this order as `"createdAt" DESC, "id" DESC`.
+const newestFirst = [
+  { createdAt: 'desc' },
+  { id: 'desc' },
+] satisfies Prisma.BookmarkOrderByWithRelationInput[];
+
 @Injectable()
 export class BookmarksRepository {
   private transactionClient?: Prisma.TransactionClient;
@@ -61,16 +67,18 @@ export class BookmarksRepository {
     limit: number,
     search?: string,
   ): Promise<BookmarkPageData> {
+    const skip = (page - 1) * limit;
+
     if (search !== undefined) {
-      return this.findSearchPage(page, limit, search);
+      return this.findSearchPage(skip, limit, search);
     }
 
     const [total, data] = await this.prisma.$transaction([
       this.prisma.bookmark.count(),
       this.prisma.bookmark.findMany({
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        orderBy: newestFirst,
         ...bookmarkWithMetadata,
       }),
     ]);
@@ -79,46 +87,40 @@ export class BookmarksRepository {
   }
 
   private async findSearchPage(
-    page: number,
+    skip: number,
     limit: number,
     search: string,
   ): Promise<BookmarkPageData> {
-    const predicate = Prisma.sql`
-      instr(lower("title"), lower(${search})) > 0
-      OR instr(lower("url"), lower(${search})) > 0
-      OR instr(lower("description"), lower(${search})) > 0
+    const matches = Prisma.sql`
+      FROM "Bookmark"
+      WHERE instr(lower("title"), lower(${search})) > 0
+        OR instr(lower("url"), lower(${search})) > 0
+        OR instr(lower("description"), lower(${search})) > 0
     `;
 
     return this.prisma.$transaction(async (transaction) => {
-      const [countRows, idRows] = await Promise.all([
-        transaction.$queryRaw<Array<{ total: bigint }>>(Prisma.sql`
-          SELECT COUNT(*) AS "total"
-          FROM "Bookmark"
-          WHERE ${predicate}
-        `),
-        transaction.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-          SELECT "id"
-          FROM "Bookmark"
-          WHERE ${predicate}
+      const [{ total }] = await transaction.$queryRaw<Array<{ total: bigint }>>(
+        Prisma.sql`SELECT COUNT(*) AS "total" ${matches}`,
+      );
+      const idRows = await transaction.$queryRaw<Array<{ id: string }>>(
+        Prisma.sql`
+          SELECT "id" ${matches}
           ORDER BY "createdAt" DESC, "id" DESC
           LIMIT ${limit}
-          OFFSET ${(page - 1) * limit}
-        `),
-      ]);
+          OFFSET ${skip}
+        `,
+      );
       const ids = idRows.map(({ id }) => id);
       const data =
         ids.length === 0
           ? []
           : await transaction.bookmark.findMany({
               where: { id: { in: ids } },
-              orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+              orderBy: newestFirst,
               ...bookmarkWithMetadata,
             });
 
-      return {
-        data,
-        total: Number(countRows[0].total),
-      };
+      return { data, total: Number(total) };
     });
   }
 
