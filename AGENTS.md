@@ -102,9 +102,11 @@ to `main`. Its jobs run in order on Node 22: `lint` (`npm run lint:check`),
 `build` (`npm run build`), and `test` (`npm run test:cov`).
 
 A repository ruleset on `main` requires a pull request, passing `lint`, `build`,
-and `test` checks, and a branch that is up to date with `main`. Nobody can bypass
-it, including admins. The required check names are the job names, so renaming a
-job requires updating the ruleset.
+and `test` checks, and a branch that is up to date with `main`. Repository admins
+can bypass it, which keeps direct pushes to `main` possible for them. Agents
+still follow `git-workflow.md` and must not push directly without explicit
+confirmation. The required check names are the job names, so renaming a job
+requires updating the ruleset.
 
 ## Docker
 
