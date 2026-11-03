@@ -31,8 +31,10 @@ repository handoff.
   different base automatically; it MUST stop and ask how to proceed.
 - If the user declines a new branch, work continues on the current branch. If
   that branch is also the intended pull-request target, the agent MUST warn
-  that delivery requires a direct push and no pull request can be created, then
-  obtain separate explicit confirmation before editing.
+  that no pull request can be created from it and obtain separate explicit
+  confirmation before editing. Direct pushes to `main` are rejected by the
+  repository ruleset, so work targeting `main` MUST use a new branch and a pull
+  request.
 - A pull request MUST target, in order of precedence, the branch explicitly
   named by the user, the existing pull request's base for continuation work,
   the base from which the new branch was created, or `main`. The agent MUST

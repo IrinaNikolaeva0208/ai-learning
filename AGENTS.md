@@ -95,6 +95,17 @@ The hook aborts on failure. Do not use `--no-verify` without explicit prior user
 approval. Husky installs through `prepare`; Docker sets `HUSKY=0` because image
 builds have no `.git` directory.
 
+## CI
+
+`.github/workflows/ci.yml` runs on pull requests targeting `main` and on pushes
+to `main`. Its jobs run in order on Node 22: `lint` (`npm run lint:check`),
+`build` (`npm run build`), and `test` (`npm run test:cov`).
+
+A repository ruleset on `main` requires a pull request, passing `lint`, `build`,
+and `test` checks, and a branch that is up to date with `main`. Nobody can bypass
+it, including admins. The required check names are the job names, so renaming a
+job requires updating the ruleset.
+
 ## Docker
 
 The Compose files are independent and must never be merged:
