@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { BookmarkStoreBusyError } from './bookmark-store-busy.error';
+import { DuplicateBookmarkUrlError } from './duplicate-bookmark-url.error';
 import { BookmarkPageData } from './types/bookmark-page-data.interface';
 import { BookmarkRecord } from './types/bookmark-record.type';
 import { CreateBookmarkData } from './types/create-bookmark-data.interface';
@@ -16,6 +18,13 @@ const newestFirst = [
   { createdAt: 'desc' },
   { id: 'desc' },
 ] satisfies Prisma.BookmarkOrderByWithRelationInput[];
+
+const hasPrismaCode = (error: unknown, code: string): boolean =>
+  error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
+
+const UNIQUE_VIOLATION = 'P2002';
+// SQLite reports a write that waited too long for its lock as a timeout.
+const OPERATION_TIMED_OUT = 'P1008';
 
 @Injectable()
 export class BookmarksRepository {
@@ -42,22 +51,17 @@ export class BookmarksRepository {
   }
 
   async create(data: CreateBookmarkData): Promise<BookmarkRecord> {
-    return this.bookmarks.create({
-      data: { ...data, metadata: { create: {} } },
-      ...bookmarkWithMetadata,
-    });
+    return this.translatingWriteErrors(() =>
+      this.bookmarks.create({
+        data: { ...data, metadata: { create: {} } },
+        ...bookmarkWithMetadata,
+      }),
+    );
   }
 
   findById(id: string): Promise<BookmarkRecord | null> {
     return this.bookmarks.findUnique({
       where: { id },
-      ...bookmarkWithMetadata,
-    });
-  }
-
-  findByUrl(url: string): Promise<BookmarkRecord | null> {
-    return this.bookmarks.findUnique({
-      where: { url },
       ...bookmarkWithMetadata,
     });
   }
@@ -129,35 +133,51 @@ export class BookmarksRepository {
     data: UpdateBookmarkData,
     resetMetadata = false,
   ): Promise<BookmarkRecord> {
-    return this.bookmarks.update({
-      where: { id },
-      data: {
-        ...data,
-        metadata: resetMetadata
-          ? {
-              update: {
-                status: 'pending',
-                pageTitle: null,
-                description: null,
-                openGraphTitle: null,
-                openGraphDescription: null,
-                openGraphImageUrl: null,
-                resolvedUrl: null,
-                fetchedAt: null,
-                attempts: 0,
-                nextAttemptAt: new Date(),
-                lockToken: null,
-                leaseExpiresAt: null,
-                lastError: null,
-              },
-            }
-          : undefined,
-      },
-      ...bookmarkWithMetadata,
-    });
+    return this.translatingWriteErrors(() =>
+      this.bookmarks.update({
+        where: { id },
+        data: {
+          ...data,
+          metadata: resetMetadata
+            ? {
+                update: {
+                  status: 'pending',
+                  pageTitle: null,
+                  description: null,
+                  openGraphTitle: null,
+                  openGraphDescription: null,
+                  openGraphImageUrl: null,
+                  resolvedUrl: null,
+                  fetchedAt: null,
+                  attempts: 0,
+                  nextAttemptAt: new Date(),
+                  lockToken: null,
+                  leaseExpiresAt: null,
+                  lastError: null,
+                },
+              }
+            : undefined,
+        },
+        ...bookmarkWithMetadata,
+      }),
+    );
   }
 
   async delete(id: string): Promise<void> {
     await this.bookmarks.delete({ where: { id } });
+  }
+
+  private async translatingWriteErrors<T>(write: () => Promise<T>): Promise<T> {
+    try {
+      return await write();
+    } catch (error) {
+      if (hasPrismaCode(error, UNIQUE_VIOLATION)) {
+        throw new DuplicateBookmarkUrlError();
+      }
+      if (hasPrismaCode(error, OPERATION_TIMED_OUT)) {
+        throw new BookmarkStoreBusyError();
+      }
+      throw error;
+    }
   }
 }

@@ -3,10 +3,13 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 
+import { BookmarkStoreBusyError } from './bookmark-store-busy.error';
 import { BookmarksRepository } from './bookmarks.repository';
-import { BookmarkMapperService } from './bookmark-mapper.service';
+import { DuplicateBookmarkUrlError } from './duplicate-bookmark-url.error';
+import { BookmarkMapperService } from './bookmark.mapper.service';
 import { BookmarkPage } from './types/bookmark-page.interface';
 import { Bookmark } from './types/bookmark.interface';
 import { CreateBookmarkData } from './types/create-bookmark-data.interface';
@@ -20,13 +23,9 @@ export class BookmarksService {
   ) {}
 
   async create(data: CreateBookmarkData): Promise<Bookmark> {
-    return this.repository.withTransaction(async (repository) => {
-      if (await repository.findByUrl(data.url)) {
-        throw new ConflictException('A bookmark with this URL already exists');
-      }
-
-      return this.mapper.toBookmark(await repository.create(data));
-    });
+    return this.mapper.toBookmark(
+      await this.translatingWriteErrors(() => this.repository.create(data)),
+    );
   }
 
   async findAll(
@@ -53,27 +52,19 @@ export class BookmarksService {
       throw new BadRequestException('At least one field must be provided');
     }
 
-    return this.repository.withTransaction(async (repository) => {
-      const bookmark = await repository.findById(id);
-      if (!bookmark) {
-        throw new NotFoundException('Bookmark not found');
-      }
+    const bookmark = await this.repository.findById(id);
+    if (!bookmark) {
+      throw new NotFoundException('Bookmark not found');
+    }
 
-      if (data.url !== undefined && data.url !== bookmark.url) {
-        if (await repository.findByUrl(data.url)) {
-          throw new ConflictException(
-            'A bookmark with this URL already exists',
-          );
-        }
-      }
-
-      const updated = await repository.update(
+    const updated = await this.translatingWriteErrors(() =>
+      this.repository.update(
         id,
         data,
         data.url !== undefined && data.url !== bookmark.url,
-      );
-      return this.mapper.toBookmark(updated);
-    });
+      ),
+    );
+    return this.mapper.toBookmark(updated);
   }
 
   async delete(id: string): Promise<void> {
@@ -84,5 +75,23 @@ export class BookmarksService {
 
       await repository.delete(id);
     });
+  }
+
+  // URL uniqueness is decided only by the database constraint. Interactive
+  // transactions queue on SQLite and time out under concurrent load.
+  private async translatingWriteErrors<T>(write: () => Promise<T>): Promise<T> {
+    try {
+      return await write();
+    } catch (error) {
+      if (error instanceof DuplicateBookmarkUrlError) {
+        throw new ConflictException('A bookmark with this URL already exists');
+      }
+      if (error instanceof BookmarkStoreBusyError) {
+        throw new ServiceUnavailableException(
+          'The database is busy, please retry',
+        );
+      }
+      throw error;
+    }
   }
 }

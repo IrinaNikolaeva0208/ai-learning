@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { BookmarkMetadataRepository } from './bookmark-metadata.repository';
@@ -116,7 +117,7 @@ describe('BookmarkMetadataWorkerService', () => {
 
     worker.onApplicationBootstrap();
     jest.runOnlyPendingTimers();
-    await worker.onApplicationShutdown();
+    await worker.beforeApplicationShutdown();
 
     expect(repository.claimNext).not.toHaveBeenCalled();
   });
@@ -135,7 +136,7 @@ describe('BookmarkMetadataWorkerService', () => {
     worker.onApplicationBootstrap();
     jest.runOnlyPendingTimers();
     await Promise.resolve();
-    await worker.onApplicationShutdown();
+    await worker.beforeApplicationShutdown();
 
     expect(repository.claimNext).toHaveBeenCalledTimes(1);
   });
@@ -146,12 +147,136 @@ describe('BookmarkMetadataWorkerService', () => {
     repository.claimNext.mockResolvedValue(null);
 
     worker.onApplicationBootstrap();
-    jest.runOnlyPendingTimers();
-    await Promise.resolve();
-    await Promise.resolve();
+    await jest.advanceTimersByTimeAsync(0);
 
     expect(jest.getTimerCount()).toBe(1);
-    await worker.onApplicationShutdown();
+    await worker.beforeApplicationShutdown();
     expect(jest.getTimerCount()).toBe(0);
+  });
+
+  describe('run failures', () => {
+    let logError: jest.SpyInstance;
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      config.get.mockReturnValue('true');
+      logError = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+      fetcher.fetch.mockResolvedValue(metadata);
+    });
+
+    const failures: Array<[string, () => void]> = [
+      [
+        'claimNext',
+        () => repository.claimNext.mockRejectedValueOnce(new Error('db down')),
+      ],
+      [
+        'fail after a rejected complete',
+        () => {
+          repository.claimNext.mockResolvedValueOnce(job);
+          repository.complete.mockRejectedValueOnce(new Error('complete down'));
+          repository.fail.mockRejectedValueOnce(new Error('db down'));
+        },
+      ],
+    ];
+
+    it.each(failures)(
+      'logs a rejected %s and polls again',
+      async (_name, arrange) => {
+        arrange();
+        repository.claimNext.mockResolvedValue(null);
+
+        worker.onApplicationBootstrap();
+        await jest.advanceTimersByTimeAsync(0);
+
+        expect(logError).toHaveBeenCalledWith(
+          'Metadata worker run failed: db down',
+        );
+        const claims = repository.claimNext.mock.calls.length;
+
+        await jest.advanceTimersByTimeAsync(1_000);
+
+        expect(repository.claimNext.mock.calls.length).toBeGreaterThan(claims);
+        await worker.beforeApplicationShutdown();
+      },
+    );
+
+    it('records a rejected complete as a job failure and carries on', async () => {
+      repository.claimNext
+        .mockResolvedValueOnce(job)
+        .mockResolvedValueOnce(null);
+      repository.complete.mockRejectedValueOnce(new Error('complete down'));
+
+      worker.onApplicationBootstrap();
+      await jest.advanceTimersByTimeAsync(0);
+
+      expect(repository.fail).toHaveBeenCalledWith(
+        job,
+        'unexpected_error: complete down',
+        expect.any(Date),
+      );
+      expect(logError).not.toHaveBeenCalled();
+      await worker.beforeApplicationShutdown();
+    });
+
+    it('logs a generic message for a non-Error rejection', async () => {
+      repository.claimNext.mockRejectedValueOnce('broken');
+      repository.claimNext.mockResolvedValue(null);
+
+      worker.onApplicationBootstrap();
+      await jest.advanceTimersByTimeAsync(0);
+
+      expect(logError).toHaveBeenCalledWith(
+        'Metadata worker run failed: Unexpected error',
+      );
+      await worker.beforeApplicationShutdown();
+    });
+
+    it('does not reject shutdown when the active run fails', async () => {
+      let rejectClaim: (error: Error) => void = () => undefined;
+      repository.claimNext.mockReturnValueOnce(
+        new Promise((_resolve, reject) => {
+          rejectClaim = reject;
+        }),
+      );
+
+      worker.onApplicationBootstrap();
+      await jest.advanceTimersByTimeAsync(0);
+      const shutdown = worker.beforeApplicationShutdown();
+      rejectClaim(new Error('db down'));
+
+      await expect(shutdown).resolves.toBeUndefined();
+      expect(jest.getTimerCount()).toBe(0);
+    });
+  });
+
+  describe('shutdown during a run', () => {
+    it('finishes the in-flight job and claims no more', async () => {
+      jest.useFakeTimers();
+      config.get.mockReturnValue('true');
+      let releaseFetch: (value: typeof metadata) => void = () => undefined;
+      repository.claimNext.mockResolvedValue(job);
+      fetcher.fetch.mockReturnValueOnce(
+        new Promise((resolve) => {
+          releaseFetch = resolve;
+        }),
+      );
+
+      worker.onApplicationBootstrap();
+      await jest.advanceTimersByTimeAsync(0);
+      let finished = false;
+      const shutdown = worker.beforeApplicationShutdown().then(() => {
+        finished = true;
+      });
+      await jest.advanceTimersByTimeAsync(0);
+
+      expect(finished).toBe(false);
+
+      releaseFetch(metadata);
+      await shutdown;
+
+      expect(repository.complete).toHaveBeenCalledWith(job, metadata);
+      expect(repository.claimNext).toHaveBeenCalledTimes(1);
+      expect(jest.getTimerCount()).toBe(0);
+    });
   });
 });

@@ -59,4 +59,6 @@ USER node
 EXPOSE 3000
 
 # Apply pending migrations before serving, so a fresh volume gets a schema.
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
+# exec makes node PID 1; otherwise sh swallows SIGTERM and graceful shutdown
+# never runs.
+CMD ["sh", "-c", "npx prisma migrate deploy && exec node dist/main.js"]

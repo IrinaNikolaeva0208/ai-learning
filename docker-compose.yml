@@ -23,10 +23,11 @@ services:
       # Bind mount, not a named volume: the dev database stays inspectable
       # from the host (`npm run prisma:studio`) and is shared with local runs.
       - ./data:/app/data
-    # Apply pending migrations, then start Nest in watch mode.
+    # Apply pending migrations, then start Nest in watch mode. exec lets SIGTERM
+    # reach npm instead of stopping at the sh wrapper.
     # --no-shell makes the CLI spawn node directly; with the default shell
     # wrapper a reload orphans the old process and the restart hits EADDRINUSE.
-    command: sh -c "npx prisma migrate deploy && npm run start:dev -- --no-shell"
+    command: sh -c "npx prisma migrate deploy && exec npm run start:dev -- --no-shell"
     healthcheck:
       test:
         [

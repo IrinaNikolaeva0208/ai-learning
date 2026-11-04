@@ -1,4 +1,4 @@
-import { BookmarkMapperService } from './bookmark-mapper.service';
+import { BookmarkMapperService } from './bookmark.mapper.service';
 import { BookmarkRecord } from './types/bookmark-record.type';
 
 describe('BookmarkMapperService', () => {

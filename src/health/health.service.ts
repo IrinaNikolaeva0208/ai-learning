@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { HealthMapperService } from './health-mapper.service';
+import { HealthMapperService } from './health.mapper.service';
 import { HealthStatus } from './health-status.interface';
 import { HealthRepository } from './health.repository';
 

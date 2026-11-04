@@ -2,10 +2,13 @@ import {
   BadRequestException,
   ConflictException,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 
+import { BookmarkStoreBusyError } from './bookmark-store-busy.error';
 import { BookmarksRepository } from './bookmarks.repository';
 import { BookmarksService } from './bookmarks.service';
+import { DuplicateBookmarkUrlError } from './duplicate-bookmark-url.error';
 import { Bookmark } from './types/bookmark.interface';
 
 describe('BookmarksService', () => {
@@ -30,7 +33,6 @@ describe('BookmarksService', () => {
     withTransaction: jest.Mock;
     create: jest.Mock;
     findById: jest.Mock;
-    findByUrl: jest.Mock;
     findPage: jest.Mock;
     update: jest.Mock;
     delete: jest.Mock;
@@ -46,7 +48,6 @@ describe('BookmarksService', () => {
       withTransaction: jest.fn(),
       create: jest.fn(),
       findById: jest.fn(),
-      findByUrl: jest.fn(),
       findPage: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
@@ -80,15 +81,13 @@ describe('BookmarksService', () => {
   });
 
   describe('create', () => {
-    it('checks the URL and creates in one transaction', async () => {
-      repository.findByUrl.mockResolvedValue(null);
+    it('creates without opening a transaction', async () => {
       repository.create.mockResolvedValue(bookmark);
 
       await expect(
         service.create({ title: bookmark.title, url: bookmark.url }),
       ).resolves.toBe(bookmark);
-      expect(repository.withTransaction).toHaveBeenCalledTimes(1);
-      expect(repository.findByUrl).toHaveBeenCalledWith(bookmark.url);
+      expect(repository.withTransaction).not.toHaveBeenCalled();
       expect(repository.create).toHaveBeenCalledWith({
         title: bookmark.title,
         url: bookmark.url,
@@ -96,12 +95,28 @@ describe('BookmarksService', () => {
     });
 
     it('rejects a duplicate URL with 409', async () => {
-      repository.findByUrl.mockResolvedValue(bookmark);
+      repository.create.mockRejectedValue(new DuplicateBookmarkUrlError());
 
       await expect(
         service.create({ title: 'Duplicate', url: bookmark.url }),
       ).rejects.toBeInstanceOf(ConflictException);
-      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('answers 503 when the store is busy', async () => {
+      repository.create.mockRejectedValue(new BookmarkStoreBusyError());
+
+      await expect(
+        service.create({ title: 'Busy', url: bookmark.url }),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    });
+
+    it('does not disguise other repository failures as conflicts', async () => {
+      const failure = new Error('database is gone');
+      repository.create.mockRejectedValue(failure);
+
+      await expect(
+        service.create({ title: 'Broken', url: bookmark.url }),
+      ).rejects.toBe(failure);
     });
   });
 
@@ -132,7 +147,7 @@ describe('BookmarksService', () => {
   });
 
   describe('update', () => {
-    it('rejects an empty patch before opening a transaction', async () => {
+    it('rejects an empty patch before reading the bookmark', async () => {
       await expect(
         service.update(bookmark.id, {
           title: undefined,
@@ -140,7 +155,7 @@ describe('BookmarksService', () => {
           description: undefined,
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
-      expect(repository.withTransaction).not.toHaveBeenCalled();
+      expect(repository.findById).not.toHaveBeenCalled();
     });
 
     it('throws 404 when the bookmark does not exist', async () => {
@@ -152,21 +167,26 @@ describe('BookmarksService', () => {
       expect(repository.update).not.toHaveBeenCalled();
     });
 
-    it('checks a changed URL and rejects a duplicate', async () => {
+    it('rejects changing to a URL that is already taken', async () => {
       repository.findById.mockResolvedValue(bookmark);
-      repository.findByUrl.mockResolvedValue({
-        ...bookmark,
-        id: '22222222-2222-4222-8222-222222222222',
-      });
+      repository.update.mockRejectedValue(new DuplicateBookmarkUrlError());
 
       await expect(
         service.update(bookmark.id, { url: 'https://example.com' }),
       ).rejects.toBeInstanceOf(ConflictException);
-      expect(repository.findByUrl).toHaveBeenCalledWith('https://example.com');
-      expect(repository.update).not.toHaveBeenCalled();
+      expect(repository.withTransaction).not.toHaveBeenCalled();
     });
 
-    it('updates unchanged values without a duplicate lookup', async () => {
+    it('answers 503 when the store is busy', async () => {
+      repository.findById.mockResolvedValue(bookmark);
+      repository.update.mockRejectedValue(new BookmarkStoreBusyError());
+
+      await expect(
+        service.update(bookmark.id, { url: 'https://example.com' }),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    });
+
+    it('keeps metadata when the URL is unchanged', async () => {
       const updated = { ...bookmark, updatedAt: new Date() };
       repository.findById.mockResolvedValue(bookmark);
       repository.update.mockResolvedValue(updated);
@@ -174,7 +194,6 @@ describe('BookmarksService', () => {
       await expect(
         service.update(bookmark.id, { url: bookmark.url }),
       ).resolves.toBe(updated);
-      expect(repository.findByUrl).not.toHaveBeenCalled();
       expect(repository.update).toHaveBeenCalledWith(
         bookmark.id,
         { url: bookmark.url },
@@ -185,7 +204,6 @@ describe('BookmarksService', () => {
     it('resets metadata when the URL changes', async () => {
       const url = 'https://example.com';
       repository.findById.mockResolvedValue(bookmark);
-      repository.findByUrl.mockResolvedValue(null);
       repository.update.mockResolvedValue({ ...bookmark, url });
 
       await service.update(bookmark.id, { url });
