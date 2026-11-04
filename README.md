@@ -20,6 +20,12 @@ cp .env.example .env
 mkdir -p data
 ```
 
+Create the database tables:
+
+```bash
+npm run prisma:deploy
+```
+
 Start the development server:
 
 ```bash
@@ -40,6 +46,17 @@ A healthy application returns:
   "database": "up"
 }
 ```
+
+## Configuration
+
+The application validates its environment at startup and exits with a message
+naming each invalid variable. Values are never included in that message.
+
+| Variable                  | Required | Accepted values                                                    |
+| ------------------------- | -------- | ------------------------------------------------------------------ |
+| `DATABASE_URL`            | Yes      | Non-empty SQLite URL, relative to `prisma/schema.prisma`           |
+| `PORT`                    | No       | Integer from 1 to 65535. Defaults to `3000`                        |
+| `METADATA_WORKER_ENABLED` | No       | `true` or `false`. When unset, enabled unless `NODE_ENV` is `test` |
 
 ## Bookmark API
 
@@ -77,7 +94,9 @@ List responses have this shape:
 The maximum `limit` is 100. Results are ordered by creation time newest first,
 with the ID as a stable descending tie-breaker. Pages beyond the final page
 return an empty `data` array. Validation errors and invalid UUIDs return `400`,
-missing bookmarks return `404`, and duplicate URLs return `409`.
+missing bookmarks return `404`, and duplicate URLs return `409`. A create or
+update returns `503` if the database is too busy to accept the write; it is safe
+to retry.
 
 The optional `search` query is trimmed and must contain 1–200 characters. It
 matches one literal substring in the bookmark title, URL, or user-provided
