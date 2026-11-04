@@ -38,6 +38,18 @@ const pendingMetadata = {
   fetchedAt: null,
 };
 
+const CONCURRENT_REQUESTS = 100;
+
+const statusCounts = (
+  responses: Array<{ status: number }>,
+): Record<number, number> => {
+  const counts: Record<number, number> = {};
+  for (const { status } of responses) {
+    counts[status] = (counts[status] ?? 0) + 1;
+  }
+  return counts;
+};
+
 const responseIds = ({ body }: { body: unknown }): string[] =>
   (body as { data: ApiBookmark[] }).data.map(({ id }) => id);
 
@@ -64,7 +76,8 @@ describe('Bookmark Manager (e2e)', () => {
     app = moduleFixture.createNestApplication();
     configureApp(app);
     prisma = app.get(PrismaService);
-    await app.init();
+    // Concurrent supertest requests need a server that is already listening.
+    await app.listen(0);
   });
 
   beforeEach(async () => {
@@ -203,6 +216,43 @@ describe('Bookmark Manager (e2e)', () => {
       .patch(`/bookmarks/${(first.body as ApiBookmark).id}`)
       .send({ url: 'https://example.com/second' })
       .expect(409);
+  });
+
+  it('answers concurrent creates of one URL with one 201 and the rest 409', async () => {
+    const responses = await Promise.all(
+      Array.from({ length: CONCURRENT_REQUESTS }, (_, index) =>
+        request(app.getHttpServer())
+          .post('/bookmarks')
+          .send({ title: `Racer ${index}`, url: 'https://example.com/race' }),
+      ),
+    );
+
+    expect(statusCounts(responses)).toEqual({
+      201: 1,
+      409: CONCURRENT_REQUESTS - 1,
+    });
+    await expect(prisma.bookmark.count()).resolves.toBe(1);
+  });
+
+  it('answers concurrent changes to one URL with one 200 and the rest 409', async () => {
+    const rows = Array.from({ length: CONCURRENT_REQUESTS }, (_, index) => ({
+      title: `Racer ${index}`,
+      url: `https://example.com/start-${index}`,
+    }));
+    const bookmarks = await seedBookmarks(rows);
+
+    const responses = await Promise.all(
+      bookmarks.map(({ id }) =>
+        request(app.getHttpServer())
+          .patch(`/bookmarks/${id}`)
+          .send({ url: 'https://example.com/race' }),
+      ),
+    );
+
+    expect(statusCounts(responses)).toEqual({
+      200: 1,
+      409: CONCURRENT_REQUESTS - 1,
+    });
   });
 
   it('clears fetched metadata and queues another job when the URL changes', async () => {

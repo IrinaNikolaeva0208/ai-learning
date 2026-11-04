@@ -1,7 +1,9 @@
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { BookmarkStoreBusyError } from './bookmark-store-busy.error';
 import { BookmarksRepository } from './bookmarks.repository';
+import { DuplicateBookmarkUrlError } from './duplicate-bookmark-url.error';
 import { Bookmark } from './types/bookmark.interface';
 
 describe('BookmarksRepository', () => {
@@ -93,12 +95,12 @@ describe('BookmarksRepository', () => {
     transactionDelegate.findUnique.mockResolvedValue(bookmarkRecord);
 
     await repository.withTransaction((transaction) =>
-      transaction.findByUrl(bookmark.url),
+      transaction.findById(bookmark.id),
     );
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(transactionDelegate.findUnique).toHaveBeenCalledWith({
-      where: { url: bookmark.url },
+      where: { id: bookmark.id },
       include: { metadata: true },
     });
     expect(bookmarkDelegate.findUnique).not.toHaveBeenCalled();
@@ -131,18 +133,13 @@ describe('BookmarksRepository', () => {
     });
   });
 
-  it('finds records by id and URL', async () => {
+  it('finds records by id', async () => {
     bookmarkDelegate.findUnique.mockResolvedValue(bookmarkRecord);
 
     await repository.findById(bookmark.id);
-    await repository.findByUrl(bookmark.url);
 
-    expect(bookmarkDelegate.findUnique).toHaveBeenNthCalledWith(1, {
+    expect(bookmarkDelegate.findUnique).toHaveBeenCalledWith({
       where: { id: bookmark.id },
-      include: { metadata: true },
-    });
-    expect(bookmarkDelegate.findUnique).toHaveBeenNthCalledWith(2, {
-      where: { url: bookmark.url },
       include: { metadata: true },
     });
   });
@@ -151,7 +148,6 @@ describe('BookmarksRepository', () => {
     bookmarkDelegate.findUnique.mockResolvedValue(null);
 
     await expect(repository.findById(bookmark.id)).resolves.toBeNull();
-    await expect(repository.findByUrl(bookmark.url)).resolves.toBeNull();
   });
 
   it('counts and lists a page in one transaction with stable ordering', async () => {
@@ -210,6 +206,45 @@ describe('BookmarksRepository', () => {
       data: [],
     });
     expect(transactionDelegate.findMany).not.toHaveBeenCalled();
+  });
+
+  describe.each([
+    ['create', () => repository.create({ title: 't', url: bookmark.url })],
+    ['update', () => repository.update(bookmark.id, { url: bookmark.url })],
+  ] as const)('%s write errors', (method, write) => {
+    it('translates a unique violation', async () => {
+      bookmarkDelegate[method].mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: 'test',
+        }),
+      );
+
+      await expect(write()).rejects.toBeInstanceOf(DuplicateBookmarkUrlError);
+    });
+
+    it('translates a lock timeout', async () => {
+      bookmarkDelegate[method].mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Operation timed out', {
+          code: 'P1008',
+          clientVersion: 'test',
+        }),
+      );
+
+      await expect(write()).rejects.toBeInstanceOf(BookmarkStoreBusyError);
+    });
+
+    it.each([
+      new Prisma.PrismaClientKnownRequestError('Not found', {
+        code: 'P2025',
+        clientVersion: 'test',
+      }),
+      new Error('database is gone'),
+    ])('passes other errors through', async (failure) => {
+      bookmarkDelegate[method].mockRejectedValue(failure);
+
+      await expect(write()).rejects.toBe(failure);
+    });
   });
 
   it('updates and deletes by id', async () => {
