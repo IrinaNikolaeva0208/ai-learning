@@ -15,10 +15,10 @@ describe('PrismaService', () => {
     expect(connect).toHaveBeenCalledTimes(1);
   });
 
-  it('disconnects when the module is destroyed', async () => {
+  it('disconnects in the final shutdown phase', async () => {
     const disconnect = jest.spyOn(service, '$disconnect').mockResolvedValue();
 
-    await service.onModuleDestroy();
+    await service.onApplicationShutdown();
 
     expect(disconnect).toHaveBeenCalledTimes(1);
   });

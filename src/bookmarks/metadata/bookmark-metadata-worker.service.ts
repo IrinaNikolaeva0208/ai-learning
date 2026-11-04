@@ -1,8 +1,8 @@
 import {
+  BeforeApplicationShutdown,
   Injectable,
   Logger,
   OnApplicationBootstrap,
-  OnApplicationShutdown,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
@@ -17,7 +17,7 @@ const RETRY_DELAYS_MS = [30_000, 5 * 60_000];
 
 @Injectable()
 export class BookmarkMetadataWorkerService
-  implements OnApplicationBootstrap, OnApplicationShutdown
+  implements OnApplicationBootstrap, BeforeApplicationShutdown
 {
   private readonly logger = new Logger(BookmarkMetadataWorkerService.name);
   private timer?: NodeJS.Timeout;
@@ -35,14 +35,16 @@ export class BookmarkMetadataWorkerService
     const enabled =
       configured === undefined
         ? this.config.get<string>('NODE_ENV') !== 'test'
-        : configured.toLowerCase() !== 'false';
+        : configured === 'true';
 
     if (enabled) {
       this.schedule(0);
     }
   }
 
-  async onApplicationShutdown(): Promise<void> {
+  // Runs before the HTTP server closes and PrismaService disconnects, so the
+  // in-flight job can still write its result.
+  async beforeApplicationShutdown(): Promise<void> {
     this.stopping = true;
     if (this.timer) {
       clearTimeout(this.timer);
@@ -52,18 +54,28 @@ export class BookmarkMetadataWorkerService
 
   private schedule(delay: number): void {
     this.timer = setTimeout(() => {
-      this.activeRun = this.processAvailableJobs().finally(() => {
-        this.activeRun = undefined;
-        if (!this.stopping) {
-          this.schedule(POLL_INTERVAL_MS);
-        }
-      });
+      this.activeRun = this.processAvailableJobs()
+        .catch((error: unknown) => {
+          this.logger.error(
+            `Metadata worker run failed: ${error instanceof Error ? error.message : 'Unexpected error'}`,
+          );
+        })
+        .finally(() => {
+          this.activeRun = undefined;
+          if (!this.stopping) {
+            this.schedule(POLL_INTERVAL_MS);
+          }
+        });
     }, delay);
     this.timer.unref();
   }
 
   async processAvailableJobs(): Promise<void> {
     for (let index = 0; index < MAX_JOBS_PER_RUN; index += 1) {
+      if (this.stopping) {
+        return;
+      }
+
       const job = await this.repository.claimNext();
       if (!job) {
         return;
