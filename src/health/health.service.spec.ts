@@ -1,4 +1,4 @@
-import { HealthMapperService } from './health-mapper.service';
+import { HealthMapperService } from './health.mapper.service';
 import { HealthRepository } from './health.repository';
 import { HealthService } from './health.service';
 

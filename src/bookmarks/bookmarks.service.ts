@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 
 import { BookmarksRepository } from './bookmarks.repository';
-import { BookmarkMapperService } from './bookmark-mapper.service';
+import { BookmarkMapperService } from './bookmark.mapper.service';
 import { BookmarkPage } from './types/bookmark-page.interface';
 import { Bookmark } from './types/bookmark.interface';
 import { CreateBookmarkData } from './types/create-bookmark-data.interface';

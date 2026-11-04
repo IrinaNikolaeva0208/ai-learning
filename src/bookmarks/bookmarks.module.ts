@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { BookmarkMapperService } from './bookmark-mapper.service';
+import { BookmarkMapperService } from './bookmark.mapper.service';
 import { BookmarksController } from './bookmarks.controller';
 import { BookmarksRepository } from './bookmarks.repository';
 import { BookmarksService } from './bookmarks.service';
